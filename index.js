@@ -37,8 +37,9 @@ async function run() {
     await client.connect();
     const db = client.db(process.env.DB_NAME);
     const destinationCollection = db.collection("destinations");
+    const bookingCollection = db.collection("bookings");
 
-    // Routes
+    // DESTINATIONS
     app.post("/destinations", async (req, res) => {
       try {
         const destination = req.body;
@@ -70,22 +71,59 @@ async function run() {
       }
     });
 
-    // Update single destination by ID
     app.put("/destinations/:id", async (req, res) => {
       try {
         const id = req.params.id;
         const updatedData = req.body;
-        // Remove _id from the body to avoid MongoDB errors
         delete updatedData._id;
-        
         const filter = { _id: new ObjectId(id) };
-        const updateDoc = {
-          $set: updatedData,
-        };
+        const updateDoc = { $set: updatedData };
         const result = await destinationCollection.updateOne(filter, updateDoc);
         res.status(200).send(result);
       } catch (error) {
-        res.status(500).send({ message: "Failed to update destination", error });
+        res.status(500).send({ message: "Failed to update", error });
+      }
+    });
+
+    app.delete("/destinations/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await destinationCollection.deleteOne(query);
+        res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to delete", error });
+      }
+    });
+
+    // BOOKINGS
+    app.post("/bookings", async (req, res) => {
+      try {
+        const booking = req.body;
+        const result = await bookingCollection.insertOne(booking);
+        res.status(201).send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to create booking", error });
+      }
+    });
+
+    app.get("/bookings", async (req, res) => {
+      try {
+        const bookings = await bookingCollection.find().toArray();
+        res.status(200).send(bookings);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch bookings", error });
+      }
+    });
+
+    app.delete("/bookings/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await bookingCollection.deleteOne(query);
+        res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to cancel booking", error });
       }
     });
 
