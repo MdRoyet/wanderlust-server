@@ -1,12 +1,12 @@
 require("dotenv").config();
 const express = require("express");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 
 // Middleware
 app.use(express.json());
 
-// Enable CORS (Cross-Origin Resource Sharing)
+// Enable CORS
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -17,14 +17,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Custom DNS settings for MongoDB connection issues in some environments
+// Custom DNS settings
 const dns = require("node:dns");
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 const PORT = process.env.PORT || 5000;
 const uri = process.env.URI;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -35,10 +34,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Connect the client to the server
     await client.connect();
-
-    // Initialize Database and Collections
     const db = client.db(process.env.DB_NAME);
     const destinationCollection = db.collection("destinations");
 
@@ -62,15 +58,43 @@ async function run() {
       }
     });
 
+    app.get("/destinations/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await destinationCollection.findOne(query);
+        if (result) res.status(200).send(result);
+        else res.status(404).send({ message: "Destination not found" });
+      } catch (error) {
+        res.status(500).send({ message: "Invalid ID format", error });
+      }
+    });
+
+    // Update single destination by ID
+    app.put("/destinations/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const updatedData = req.body;
+        // Remove _id from the body to avoid MongoDB errors
+        delete updatedData._id;
+        
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: updatedData,
+        };
+        const result = await destinationCollection.updateOne(filter, updateDoc);
+        res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to update destination", error });
+      }
+    });
+
     app.get("/", (req, res) => {
       res.send("Wanderlust Server is running!");
     });
 
-    // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
-    console.log(
-      `Pinged your deployment. You successfully connected to MongoDB! Database: ${process.env.DB_NAME}`,
-    );
+    console.log(`Pinged MongoDB! Connected to: ${process.env.DB_NAME}`);
   } catch (err) {
     console.error("Failed to connect to MongoDB", err);
   }
